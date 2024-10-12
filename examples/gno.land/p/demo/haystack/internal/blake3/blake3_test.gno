@@ -1,10 +1,12 @@
-package blake3
+package blake3_test
 
 import (
 	"bytes"
 	"encoding/hex"
 	"io"
 	"testing"
+
+	"gno.land/p/demo/haystack/internal/blake3"
 )
 
 func toHex(data []byte) string { return hex.EncodeToString(data) }
@@ -27,14 +29,14 @@ func TestVectors(t *testing.T) {
 		in := testInput[:vec.InputLen]
 
 		// regular
-		h := New(len(vec.Hash)/2, nil)
+		h := blake3.New(len(vec.Hash)/2, nil)
 		h.Write(in)
 		if out := toHex(h.Sum(nil)); out != vec.Hash {
 			t.Errorf("output did not match test vector:\n\texpected: %v...\n\t     got: %v...", vec.Hash[:10], out[:10])
 		}
 
 		// keyed
-		h = New(len(vec.KeyedHash)/2, []byte(testVectors.Key))
+		h = blake3.New(len(vec.KeyedHash)/2, []byte(testVectors.Key))
 		h.Write(in)
 		if out := toHex(h.Sum(nil)); out != vec.KeyedHash {
 			t.Errorf("output did not match test vector:\n\texpected: %v...\n\t     got: %v...", vec.KeyedHash[:10], out[:10])
@@ -43,7 +45,7 @@ func TestVectors(t *testing.T) {
 		// derive key
 		const ctx = "BLAKE3 2019-12-27 16:29:52 test vectors context"
 		subKey := make([]byte, len(vec.DeriveKey)/2)
-		DeriveKey(subKey, ctx, in)
+		blake3.DeriveKey(subKey, ctx, in)
 		if out := toHex(subKey); out != vec.DeriveKey {
 			t.Errorf("output did not match test vector:\n\texpected: %v...\n\t     got: %v...", vec.DeriveKey[:10], out[:10])
 		}
@@ -55,7 +57,7 @@ func TestXOF(t *testing.T) {
 		in := testInput[:vec.InputLen]
 
 		// XOF should produce same output as Sum, even when outputting 7 bytes at a time
-		h := New(len(vec.Hash)/2, nil)
+		h := blake3.New(len(vec.Hash)/2, nil)
 		h.Write(in)
 		var xofBuf bytes.Buffer
 		io.CopyBuffer(&xofBuf, io.LimitReader(h.XOF(), int64(len(vec.Hash)/2)), make([]byte, 7))
@@ -89,7 +91,7 @@ func TestXOF(t *testing.T) {
 		}
 	}
 	// test behavior at end of stream
-	xof := New(0, nil).XOF()
+	xof := blake3.New(0, nil).XOF()
 	buf := make([]byte, 1024)
 	xof.Seek(-1000, io.SeekEnd)
 	n, err := xof.Read(buf)
@@ -128,18 +130,18 @@ func TestSum(t *testing.T) {
 		in := testInput[:vec.InputLen]
 
 		var exp256 [32]byte
-		h := New(32, nil)
+		h := blake3.New(32, nil)
 		h.Write(in)
 		h.Sum(exp256[:0])
-		if got256 := Sum256(in); exp256 != got256 {
+		if got256 := blake3.Sum256(in); exp256 != got256 {
 			t.Errorf("Sum256 output did not match Sum output:\n\texpected: %x...\n\t     got: %x...", exp256[:5], got256[:5])
 		}
 
 		var exp512 [64]byte
-		h = New(64, nil)
+		h = blake3.New(64, nil)
 		h.Write(in)
 		h.Sum(exp512[:0])
-		if got512 := Sum512(in); exp512 != got512 {
+		if got512 := blake3.Sum512(in); exp512 != got512 {
 			t.Errorf("Sum512 output did not match Sum output:\n\texpected: %x...\n\t     got: %x...", exp512[:5], got512[:5])
 		}
 	}
@@ -149,7 +151,7 @@ func TestReset(t *testing.T) {
 	for _, vec := range testVectors.Cases {
 		in := testInput[:vec.InputLen]
 
-		h := New(32, nil)
+		h := blake3.New(32, nil)
 		h.Write(in)
 		out1 := h.Sum(nil)
 		h.Reset()
@@ -161,7 +163,7 @@ func TestReset(t *testing.T) {
 	}
 
 	// gotta have 100% test coverage...
-	if New(0, nil).BlockSize() != 64 {
+	if blake3.New(0, nil).BlockSize() != 64 {
 		t.Error("incorrect block size")
 	}
 }
@@ -173,13 +175,13 @@ func (nopReader) Read(p []byte) (int, error) { return len(p), nil }
 func BenchmarkWrite(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(1024)
-	io.CopyN(New(0, nil), nopReader{}, int64(b.N*1024))
+	io.CopyN(blake3.New(0, nil), nopReader{}, int64(b.N*1024))
 }
 
 func BenchmarkXOF(b *testing.B) {
 	b.ReportAllocs()
 	b.SetBytes(1024)
-	io.CopyN(io.Discard, New(0, nil).XOF(), int64(b.N*1024))
+	io.CopyN(io.Discard, blake3.New(0, nil).XOF(), int64(b.N*1024))
 }
 
 func BenchmarkSum256(b *testing.B) {
@@ -188,7 +190,7 @@ func BenchmarkSum256(b *testing.B) {
 		b.SetBytes(64)
 		buf := make([]byte, 64)
 		for i := 0; i < b.N; i++ {
-			Sum256(buf)
+			blake3.Sum256(buf)
 		}
 	})
 	b.Run("1024", func(b *testing.B) {
@@ -196,7 +198,7 @@ func BenchmarkSum256(b *testing.B) {
 		b.SetBytes(1024)
 		buf := make([]byte, 1024)
 		for i := 0; i < b.N; i++ {
-			Sum256(buf)
+			blake3.Sum256(buf)
 		}
 	})
 	b.Run("65536", func(b *testing.B) {
@@ -204,7 +206,7 @@ func BenchmarkSum256(b *testing.B) {
 		b.SetBytes(65536)
 		buf := make([]byte, 65536)
 		for i := 0; i < b.N; i++ {
-			Sum256(buf)
+			blake3.Sum256(buf)
 		}
 	})
 }

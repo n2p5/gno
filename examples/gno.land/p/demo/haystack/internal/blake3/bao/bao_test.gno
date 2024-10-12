@@ -1,4 +1,4 @@
-package blake3
+package bao_test
 
 import (
 	"bytes"
@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"gno.land/p/demo/haystack/internal/blake3"
 	"gno.land/p/demo/haystack/internal/blake3/bao"
 	"gno.land/p/demo/ufmt"
 )
@@ -14,7 +15,7 @@ func toHex(data []byte) string { return hex.EncodeToString(data) }
 
 func genTestData() []byte {
 	data := make([]byte, 1<<14)
-	New(0, nil).XOF().Read(data)
+	blake3.New(0, nil).XOF().Read(data)
 	return data
 }
 
@@ -165,7 +166,7 @@ func TestBaoStreaming(t *testing.T) {
 	data := genTestData()
 
 	enc, root := bao.EncodeBuf(data, 0, false)
-	if root != Sum256(data) {
+	if root != blake3.Sum256(data) {
 		t.Fatal("bad root")
 	}
 	var buf bytes.Buffer
